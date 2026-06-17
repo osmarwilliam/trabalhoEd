@@ -1,0 +1,91 @@
+Este arquivo (arvoreBmais.c) contém a implementação principal da Árvore B+ (B+ Tree). Essa estrutura
+  é o coração do sistema de indexação e armazenamento de dados do projeto, pois é projetada para
+  manipular grandes volumes de dados que não cabem todos na memória ao mesmo tempo (com operações de
+  I/O em disco, abstraídas pelo arquivo disco.h).
+
+  Nesta Árvore B+, os registros reais (como informações de pessoas e filmes) são armazenados apenas
+  nos nós folha, enquanto os nós internos (índices) contêm apenas chaves de busca para orientar a
+  navegação.
+
+  Aqui está a explicação detalhada de cada parte e das lógicas implementadas no arquivo:
+
+  1. Variáveis Globais e Estrutura de Navegação (Stack)
+   - grau_t: Define o "grau" (ordem mínima) da árvore. O grau define o limite de elementos nos nós:
+     cada nó pode ter entre t-1 e 2t-1 chaves.
+   - Pilha de Pais (stack_pais): A árvore trabalha interagindo com o disco (por meio de ids em vez de
+     ponteiros de memória em C comuns). Quando inserimos ou removemos dados, os nós podem
+     "transbordar" (overflow) ou "esvaziar demais" (underflow). Para corrigir isso propagando
+     alterações em direção à raiz, o código mantém um histórico do caminho descendente que fez até o
+     nó folha em formato de Pilha (Stack). Isso evita adicionar os nós "pais" na estrutura do nó em
+     disco e também evita usar uma recursão complexa na hora de balancear a árvore.
+
+  2. Inicialização (inicializar_arvore)
+  Essa função configura o grau t e prepara o disco. Se a árvore for recém-criada (ou seja, não houver
+  um ID raiz válido no disco), ele cria dois nós essenciais:
+   1. Um Nó Folha vazio para armazenar os primeiros registros.
+   2. Um Nó Raiz interno apontando para esse nó folha.
+  O salvamento ocorre através de funções de disco (como salvar_folha e salvar_no_indice).
+
+  3. Funções de Navegação e Busca
+  A árvore usa nomes de pessoas ou títulos de filmes (strings alfabéticas) como Chave de Indexação.
+
+   - descer_ate_folha: Faz a busca top-down. Verifica em qual ramo a chave pesquisada deve estar
+     comparando as strings alfabeticamente (strcmp). Continua saltando para os filhos até encontrar um
+     nó que é Folha. É aqui que ela também empilha o caminho na stack_pais.
+   - obter_primeira_folha e varredura_folhas: Como é uma Árvore B+, todas as folhas são ligadas entre
+     si por uma lista encadeada (campo id_proxima_folha). A varredura vai até a folha mais à esquerda
+     da árvore e depois percorre todas as folhas conectadas sequencialmente, o que é ideal para listar
+     todos os dados do banco.
+   - buscar_por_nome: A busca ótima (O(log N)). Desce a árvore até a folha exata e retorna o registro
+     pela chave (string).
+   - buscar_por_id: A busca custosa ($O(N)$). Como os registros estão organizados em ordem alfabética
+     na árvore e não por id, uma busca por ID exige varrer sequencialmente todas as folhas até
+     encontrar a correspondência desejada.
+
+  4. Operações de Inserção (inserir_registro)
+  Quando um registro é inserido (inserir_pessoa ou inserir_filme), ele desce pela árvore até achar o
+  nó folha ideal.
+   1. Se a folha tiver espaço (menos de 2t - 1 registros), insere em ordem alfabética no array do
+      próprio nó.
+   2. Split de Folha (Divisão): Se a folha estiver cheia, ela é dividida no meio. O código cria um
+      segundo nó folha adjacente, divide os dados metade-metade (t registros para cada lado) e mantém
+      o encadeamento para navegação sequencial.
+   3. Propagação do Split: O split gera uma nova "chave promovida" (que é a primeira chave da nova
+      folha da direita). Essa chave precisa ser inserida no nó "Pai" (nó de índice) que é recuperado
+      pela stack_pais.
+   4. Split de Nó de Índice: Se o nó de índice pai também estiver cheio com 2t-1 chaves, ele mesmo
+      sofre um split. Diferente da folha, a chave central do índice não fica duplicada nos dois lados;
+      ela sobe e vira "promovida" para o nível de cima. Esse processo pode se repetir até a raiz. Caso
+      a raiz sofra split, uma nova raiz é criada com dois filhos, e a árvore cresce de altura.
+
+  5. Operações de Remoção (remover_registro)
+  É a parte de algorítmica mais elaborada do arquivo. Após remover a chave da folha, é verificado o
+  underflow (quando a folha ou o índice fica com menos de t-1 itens).
+  Para resolver isso, o sistema tentar 3 soluções, utilizando a pilha do caminho:
+   1. Empréstimo (Redistribuição): Pega itens do irmão adjacente da esquerda ou da direita, caso o
+      irmão tenha elementos de sobra ($> t-1$). Isso corrige o problema arrumando apenas a chave
+      correspondente no índice "Pai" para a nova organização.
+   2. Fusão (Merge) de Folhas: Caso ambos os irmãos também estejam na capacidade mínima e não possam
+      emprestar elementos, a folha atual se "funde" com o vizinho, virando um só nó. A fusão implica
+      que a chave que dividia as duas seções no "Pai" seja excluída.
+   3. Propagação de Underflow para Nós Internos: Como uma chave foi apagada do pai devido à fusão das
+      folhas, o pai agora pode ter entrado em underflow. A rotina então sobe usando o stack_pais
+      aplicando lógicas semelhantes de empréstimo (que na árvore B+ interna requer rotacionar a chave
+      usando o nó de cima) e fusão em nós de índices. Se, ao final do processo, a raiz acabar sem
+      chaves e com apenas um filho, a raiz atual morre e a árvore diminui de tamanho assumindo esse
+      único filho como nova raiz.
+
+  Existe também a função remover_por_id, que não pode localizar rápido, então ela busca
+  sequencialmente o ID e, após encontrar, usa a string/nome do registro para rodar a rotina normal de
+  exclusão rápida, excluindo de lambuja relacionamentos numa estrutura hash (via
+  limpar_relacionamentos...).
+
+  6. Debug / Visualização (imprimir_arvore)
+  O código encerra com funções recursivas de printf que varrem todos os níveis da árvore e tabulam
+  (adicionando recuo visual de espaçamento) para o terminal. Isso serve para o desenvolvedor enxergar
+  exatamente a topologia em memória/disco (quais chaves estão em quais níveis, e os registros nas
+  folhas).
+
+  Em suma, você tem aqui uma Árvore B+ clássica de livro texto com implementação persistente. Ele
+  isola a manipulação em disco por meio de chamadas como ler_no_indice(), salvar_folha() e
+  liberar_...() (provavelmente para gerir o cache de páginas do disco em memória principal).
