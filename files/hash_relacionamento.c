@@ -352,7 +352,7 @@ void consulta_d_atores_juntos_decada(void) {
 
     /* Coleta décadas presentes */
     int decadas[200];
-    int nd = 0;l
+    int nd = 0;
     for (int i = 0; i < total; i++) {
         /* pega o ano do filme via árvore */
         Registro *r = buscar_por_nome(todos[i].titulo_filme);
