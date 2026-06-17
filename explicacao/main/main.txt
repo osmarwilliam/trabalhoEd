@@ -1,0 +1,88 @@
+
+✦ O arquivo main.c é o ponto de entrada (entry point) do seu programa. Ele funciona como o
+  controlador da interface de linha de comando (CLI) do seu "Sistema Hollywood". Ele não
+  implementa as estruturas de dados complexas diretamente (como a Árvore B+ ou a Tabela Hash),
+  mas sim recebe a entrada do usuário, faz validações básicas e chama as funções apropriadas de
+  outros arquivos (como arvoreBmais.h, hash_relacionamento.h, etc.).
+
+  Abaixo, detalho o que acontece em cada uma das funções presentes neste arquivo:
+
+  1. Função limpar_buffer(void)
+   * O que faz: É uma função utilitária (auxiliar) que limpa o buffer do teclado (stdin).
+   * Por que é necessária: Quando usamos scanf para ler números ou caracteres, o caractere de
+     "Enter" (nova linha, \n) frequentemente fica preso no buffer de entrada. Se não for limpo,
+     a próxima leitura (como um fgets ou outro scanf) vai ler esse \n acidentalmente e pular a
+     entrada do usuário.
+   * Como funciona: Ela lê os caracteres um a um usando getchar() num loop (while) até
+     encontrar uma quebra de linha (\n) ou o fim do arquivo (EOF).
+
+  2. Função menu_inserir_relacionamento(void)
+   * O que faz: Controla a interface para o usuário cadastrar uma nova relação entre uma Pessoa
+     e um Filme.
+   * Como funciona passo a passo:
+       1. Cria uma variável do tipo Relacionamento (uma struct) e zera sua memória com memset.
+       2. Pede ao usuário o ID do Filme, o ID da Pessoa e qual o Papel desempenhado (A=Ator,
+          D=Diretor, P=Produtor, W=Escritor).
+       3. A cada leitura com scanf, invoca limpar_buffer() para evitar lixo no teclado.
+       4. Usa a função buscar_por_id (da sua árvore B+) para verificar se tanto a pessoa quanto
+          o filme realmente existem no banco de dados. Se algum não existir, exibe um erro e
+          aborta a operação.
+       5. Se ambos existirem, ela faz um pequeno "cache": copia o nome da pessoa e o título do
+          filme diretamente para a struct Relacionamento. Isso serve para facilitar buscas no
+          futuro sem precisar consultar a árvore B+ novamente apenas para pegar o nome.
+       6. Libera a memória alocada nas buscas e, por fim, chama inserir_relacionamento(rel)
+          para salvar isso na Tabela Hash.
+
+  3. Função menu_consultas(void)
+   * O que faz: Exibe e gerencia o submenu de "Consultas Analíticas".
+   * Como funciona:
+       1. Imprime na tela as opções de (a) a (t), que correspondem a buscas complexas no
+          sistema (ex: "Atores e diretores juntos", "Filmes que são continuações", etc.).
+       2. Lê a escolha do usuário (uma letra) como uma string de até 3 caracteres para evitar
+          estouro de buffer (buffer overflow).
+       3. Usa um bloco switch/case na primeira letra digitada (letra[0]). Ele aceita tanto
+          maiúsculas quanto minúsculas (ex: case 'a': case 'A':).
+       4. Para cada letra, direciona para a função de consulta correspondente.
+       5. A opção 'q' tem um detalhe a mais: antes de chamar a função, ela pede ao usuário que
+          digite qual o ID do filme de onde se deseja retirar todos os relacionamentos.
+
+  4. Função main(void)
+   * O que faz: É a função principal que inicia o programa, configura o ambiente e mantém o
+     laço (loop) de interação com o usuário funcionando.
+   * Como funciona passo a passo:
+       1. Configuração de saída: setvbuf(stdout, NULL, _IONBF, 0); desativa o buffer do printf,
+          o que garante que o texto apareça imediatamente na tela do usuário.
+       2. Criação do diretório "dados": Usa a função stat do sistema operacional para checar se
+          a pasta "dados" existe. Se não existir (== -1), ele a cria com permissão utilizando
+          mkdir (há até uma macro #if defined(_WIN32) garantindo que funcione tanto em Windows
+          quanto em Linux/Mac).
+       3. Inicialização do Banco de Dados:
+           * Busca se já existe um arquivo com o grau "t" da Árvore B+ usando ler_grau_t().
+           * Se existir (t > 0): O sistema entende que já há dados salvos. Ele apenas avisa o
+             usuário e reinicia a árvore e o hash a partir dos arquivos.
+           * Se não existir: Ele diz que o banco não foi encontrado, pede para o usuário
+             definir o grau "t" (garantindo que seja >= 2), inicializa as estruturas e invoca
+             carregar_dados_iniciais() (que provavelmente carrega dados de um arquivo .txt ou
+             .csv para o seu sistema por meio do loader).
+       4. Loop Principal (do...while): Fica rodando um menu com as opções de 1 a 0
+          repetidamente.
+           * Opção 1 (Inserir): Pergunta se o usuário quer inserir uma Pessoa ou um Filme. Ele
+             lê o Nome/Título e usa buscar_por_nome para impedir a criação de registros
+             duplicados. Depois pede o ano, gera um novo ID sequencial (ler_proximo_id_global e
+             salva com salvar_proximo_id_global) e insere na árvore.
+           * Opção 2 (Remover): Pede um ID e chama a função para remover o registro da Árvore.
+           * Opção 3 (Buscar por nome): Pede uma string (nome ou título), busca na Árvore e, se
+             achar, identifica se é tipo Filme ou Pessoa para imprimir na tela formatado.
+           * Opção 4 (Buscar por ID): Idêntico à opção 3, mas fazendo a busca pelo número do
+             ID.
+           * Opção 5 (Imprimir árvore): Exibe no console a estrutura da Árvore B+.
+           * Opção 6 (Inserir Relacionamento): Chama a função menu_inserir_relacionamento()
+             detalhada no item 2.
+           * Opção 7 (Relacionamentos do Filme): Pede o ID de um filme e busca na Tabela Hash
+             as pessoas envolvidas nele.
+           * Opção 8 (Filmes da Pessoa): Pede o ID de uma pessoa e busca na Tabela Hash em
+             quais filmes ela trabalhou.
+           * Opção 9 (Consultas analíticas): Chama a função menu_consultas() detalhada no item
+             3.
+           * Opção 0 (Sair): Quebra o laço de repetição (break) e encerra o programa com
+             sucesso (return 0).

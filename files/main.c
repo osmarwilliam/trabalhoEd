@@ -269,11 +269,14 @@ int main(void) {
     return 0;
 }
 
-// Inserção manual de relacionamento via menu
+// insercao manual de relacionamento pelo menu
 static void menu_inserir_relacionamento(void) {
 
     Relacionamento rel;
-    memset(&rel, 0, sizeof(rel));
+
+    // para evitar problemas pq na parte de baixo vou usar a funcao strncpy
+    memset(&rel, 0, sizeof(rel)); // apenas para limpar o local da mem que o rel foi armazenado para evitar bugs
+
 
     printf("ID do Filme: ");
     if (scanf("%d", &rel.id_filme) != 1) {
@@ -296,8 +299,8 @@ static void menu_inserir_relacionamento(void) {
     }
     limpar_buffer();
 
-    /* Preenche campos de cache consultando a árvore */
-    Registro *rp = buscar_por_id(rel.id_pessoa);
+    // preenche campos de cache consultando a arvore
+    Registro *rp = buscar_por_id(rel.id_pessoa); // retorna a estrutura consulta_l_f_a_k_por_decada
     Registro *rf = buscar_por_id(rel.id_filme);
     if (!rp || !rf) {
         printf("Erro: ID de pessoa ou filme nao encontrado na arvore.\n");
@@ -307,13 +310,15 @@ static void menu_inserir_relacionamento(void) {
     }
     strncpy(rel.nome_pessoa,  rp->dados.pessoa.nome,   NOME_MAX - 1);
     strncpy(rel.titulo_filme, rf->dados.filme.titulo,  NOME_MAX - 1);
-    free(rp); free(rf);
+    // a busca retorna a estrutura que foi achada no arquivo portanto tem que da o free
+    free(rp);
+    free(rf);
 
     inserir_relacionamento(rel);
     printf("Relacionamento inserido com sucesso.\n");
 }
 
-// Menu de consultas analíticas (a)–(t)
+// menu de consultas (a)–(t)
 static void menu_consultas(void) {
     printf("\n=== CONSULTAS ANALITICAS ===\n");
     printf(" (a) Todos que trabalharam juntos\n");
@@ -375,7 +380,7 @@ static void menu_consultas(void) {
     }
 }
 
-
+// funcao para limpar o buffer sempre q o usuario usa o enter, para evitar possiveis problemas
 static void limpar_buffer(void) {
     int c;
     while ((c = getchar()) != '\n' && c != EOF);
