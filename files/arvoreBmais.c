@@ -29,9 +29,7 @@ static EntradaStack stack_pop(void) {
     return stack_pais[--stack_top];
 }
 
-/* -------------------------------------------------------
- * Inicialização
- * ------------------------------------------------------- */
+ //Inicialização
 void inicializar_arvore(int t) {
     grau_t = t;
     inicializar_disco(t);

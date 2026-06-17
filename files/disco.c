@@ -11,33 +11,28 @@
  * nó interno, próximo id de folha, próximo id global de
  * Pessoa/Filme (para não repetir IDs entre sessões).
  * ------------------------------------------------------- */
-typedef struct {
-    int grau_t;
-    int raiz_id;
-    int prox_id_indice;
-    int prox_id_folha;
-    int prox_id_global;   /* NOVO: persiste contador de IDs entre sessões */
-} CabecalhoIndices;
+typedef struct { // header dp arquivo indices
+    int grau_t; // grau da arv
+    int raiz_id; // posicao da raiz
+    int prox_id_indice; // armazena o id da prox struct do nó indice q será adicionada
+    int prox_id_folha; // armazena o prox valor do id da folha q será adicionada se preciso nos arqvs Folhas
+    int prox_id_global; // contador de IDs entre sessões
+} CabecalhoIndices; // tem cerca de 20bytes no inicio do arquivo de indices
 
-/* Tamanho fixo de um nó índice serializado:
- *   2 ints (eh_folha, num_chaves)
- *   (2t-1) strings de NOME_MAX bytes
- *   (2t)   ints (filhos)
- * Exportado via disco.h para uso em salvar/ler.
- */
+// calculo do tamanho do indice
 long tamanho_no_indice_disco(int t) {
-    return (long)(2 * sizeof(int))
-         + (long)(2*t - 1) * NOME_MAX
-         + (long)(2*t)     * sizeof(int);
+    return (long)(2 * sizeof(int)) // 2 ints eh folha e nchaves
+         + (long)(2*t - 1) * NOME_MAX // 2*t -1 que sao as chaves
+         + (long)(2*t)     * sizeof(int); // 2t que são os filhos
 }
 
-/* ---- helpers internos ---- */
+// helpers internos
 
 static CabecalhoIndices ler_cabecalho(void) {
     CabecalhoIndices cab = {0, -1, 0, 0, 1};
     FILE *f = fopen(ARQ_INDICES, "rb");
     if (f) {
-        fread(&cab, sizeof(CabecalhoIndices), 1, f);
+        fread(&cab, sizeof(CabecalhoIndices), 1, f); // ler os 20 bytes inicias do arq indice
         fclose(f);
     }
     return cab;
@@ -147,35 +142,43 @@ NoIndice *ler_no_indice(int id_no, int t) {
     FILE *f = fopen(ARQ_INDICES, "rb");
     if (!f) { perror("ler_no_indice: fopen"); return NULL; }
 
-    long offset = (long)sizeof(CabecalhoIndices)
-                + (long)id_no * tamanho_no_indice_disco(t);
+    // calculo do offset para saber a posição do nó a partir do id_no
+    long offset = (long)sizeof(CabecalhoIndices) + (long)id_no * tamanho_no_indice_disco(t);
+
+    // se move até a posição daquele nó no arq indice
     if (fseek(f, offset, SEEK_SET) != 0) {
-        perror("ler_no_indice: fseek"); fclose(f); return NULL;
+        perror("ler_no_indice: fseek");
+        fclose(f);
+        return NULL;
     }
 
+
     NoIndice *no = (NoIndice *)malloc(sizeof(NoIndice));
-    if (!no) { fclose(f); return NULL; }
+    if (!no) {
+        fclose(f); // caso tenha dado erro ao malocar fecha o arq e retorna
+        return NULL;
+    }
 
     no->chaves = (char **)malloc((2*t - 1) * sizeof(char *));
     for (int i = 0; i < 2*t - 1; i++)
-        no->chaves[i] = (char *)calloc(NOME_MAX, 1);
+        no->chaves[i] = (char *)calloc(NOME_MAX, 1); // inicializa todas chaves com valor 0 usando o calloc
     no->filhos = (int *)malloc((2*t) * sizeof(int));
 
-    if (fread(&no->eh_folha,   sizeof(int), 1, f) != 1) goto erro;
-    if (fread(&no->num_chaves, sizeof(int), 1, f) != 1) goto erro;
+    if (fread(&no->eh_folha,   sizeof(int), 1, f) != 1) goto erro; // ler se eh folha
+    if (fread(&no->num_chaves, sizeof(int), 1, f) != 1) goto erro; // ler a qtd de chaves
     for (int i = 0; i < 2*t - 1; i++) {
-        if (fread(no->chaves[i], NOME_MAX, 1, f) != 1) goto erro;
+        if (fread(no->chaves[i], NOME_MAX, 1, f) != 1) goto erro; // vai salvando as chaves
     }
     for (int i = 0; i < 2*t; i++) {
-        if (fread(&no->filhos[i], sizeof(int), 1, f) != 1) goto erro;
+        if (fread(&no->filhos[i], sizeof(int), 1, f) != 1) goto erro; // e por fim salva os filhos
     }
     fclose(f);
     return no;
 
-erro:
-    perror("ler_no_indice: fread");
+    erro: // se deu algum erro na parte de cima pula para cá
+    perror("ler_no_indice: fread"); // imprime a msg de erro
     fclose(f);
-    liberar_no_indice(no, t);
+    liberar_no_indice(no, t); // libera o nó q foi alocado
     return NULL;
 }
 

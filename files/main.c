@@ -17,23 +17,29 @@ static void menu_consultas(void);
 
 // main
 int main(void) {
-    setvbuf(stdout, NULL, _IONBF, 0);
 
+    // boa prática pra evitar alguns tipos de congelamento na tela principalmente no windows
+    setvbuf(stdout, NULL, _IONBF, 0); // stdout é a tela e o _IONB fala pra n ter buffer na entrada/saida
+
+    // stat busca pelo diretorio dados e salva no st, se achar o retorno é 0, se n achar é -1
     struct stat st = {0};
     if (stat("dados", &st) == -1) { // verifica se n existe o diretorio
-        // verifica qual o SO
+        // verifica qual o SO pq o mkdir se comporta diferente entre os sistemas
         #if defined(_WIN32)
             mkdir("dados");
         #else
             mkdir("dados", 0700);
         #endif //
     }
+
+    // para controlar a inserção dos id na arvore, mantendo sempre a ordem correta
     ListaLivres lista;
     lista.quantidade = 0;
     int novo_id;
+
     printf("\n========== SISTEMA BROLLYWOOD ==========\n");
 
-    int t_salvo = ler_grau_t();
+    int t_salvo = ler_grau_t(); // verifica se a arvore ja foi iniciada procurando o valor do grau dela
     if (t_salvo > 0) {
         printf("Banco de dados existente encontrado (t = %d).\n", t_salvo);
         inicializar_arvore(t_salvo);
@@ -42,9 +48,11 @@ int main(void) {
         int novo_t;
         printf("Banco de dados nao encontrado.\n");
         printf("Defina o grau minimo t da Arvore B+ (t >= 2): ");
-        if (scanf("%d", &novo_t) != 1) return 1;
+        if (scanf("%d", &novo_t) != 1)
+            return 1;
         limpar_buffer();
-        if (novo_t < 2) novo_t = 2;
+        if (novo_t < 2)
+            novo_t = 2;
 
         inicializar_arvore(novo_t);
         inicializar_arquivo_hash();
@@ -67,8 +75,13 @@ int main(void) {
         printf("Escolha: ");
 
         int scan_res = scanf("%d", &opcao);
-        if (scan_res == EOF) break;
-        if (scan_res != 1) { limpar_buffer(); opcao = -1; continue; }
+        //if (scan_res == EOF)
+         //   break;
+        if (scan_res != 1) {
+            limpar_buffer();
+            opcao = -1;
+            continue;
+        }
         limpar_buffer();
 
         switch (opcao) {
@@ -83,15 +96,20 @@ int main(void) {
                 limpar_buffer();
 
                 if (tipo == 1) {
-                    Pessoa p; memset(&p, 0, sizeof(p));
-                    printf("Nome: "); fgets(p.nome, NOME_MAX, stdin);
-                    p.nome[strcspn(p.nome, "\n")] = 0;
+                    Pessoa p;
+                    memset(&p, 0, sizeof(p));  // limpa o p retirando qualuqer lixo da memória
+                    printf("Nome: ");
+                    // fgets para respeitar o tamanho evitando o estouro
+                    fgets(p.nome, NOME_MAX, stdin);
+                    // o fgets guarda o \n no fim q pode gerar algum problema depois de quebra de linha
+                    p.nome[strcspn(p.nome, "\n")] = 0; // percorre o nome até achar o \n e coloca o valor 0 lá
 
-                    /* Verifica duplicidade de nome */
+                    // Verifica duplicidade de nome
                     Registro *dup = buscar_por_nome(p.nome);
                     if (dup) {
-                        printf("Erro: ja existe registro com o nome '%s'.\n", p.nome);
-                        free(dup); break;
+                        printf("Erro: ja existe registro com o nome '%s'.\n", p.nome); // se já existe o nome a gnt
+                        free(dup);
+                        break;
                     }
 
                     printf("Ano de Nascimento: ");
@@ -113,18 +131,25 @@ int main(void) {
                     printf("Pessoa '%s' (ID %d) inserida.\n", p.nome, p.id_pessoa);
 
                 } else if (tipo == 2) {
-                    Filme f; memset(&f, 0, sizeof(f));
-                    printf("Titulo: "); fgets(f.titulo, NOME_MAX, stdin);
+                    Filme f;
+
+                    // limpa o campo da memória
+                    memset(&f, 0, sizeof(f));
+
+                    printf("Titulo: ");
+                    fgets(f.titulo, NOME_MAX, stdin);
                     f.titulo[strcspn(f.titulo, "\n")] = 0;
 
                     Registro *dup = buscar_por_nome(f.titulo);
                     if (dup) {
                         printf("Erro: ja existe registro com o titulo '%s'.\n", f.titulo);
-                        free(dup); break;
+                        free(dup);
+                        break;
                     }
 
                     printf("Ano de Lancamento: ");
-                    scanf("%d", &f.ano_lancamento); limpar_buffer();
+                    scanf("%d", &f.ano_lancamento);
+                    limpar_buffer();
 
                     if(lista.quantidade > 0){
                         novo_id = lista.ids[0];
@@ -345,7 +370,10 @@ static void menu_consultas(void) {
     printf("Escolha: ");
 
     char letra[4];
-    if (scanf("%3s", letra) != 1) { limpar_buffer(); return; }
+    if (scanf("%3s", letra) != 1) {
+        limpar_buffer();
+        return;
+    }
     limpar_buffer();
 
     switch (letra[0]) {
