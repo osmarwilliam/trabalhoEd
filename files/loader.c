@@ -201,7 +201,7 @@ static void processar_relacionamento(char *buffer) {
     inserir_relacionamento(rel);
 }
 
- * Ponto de entrada público
+// Ponto de entrada público
 void carregar_dados_iniciais(void) {
     /* Garante que proximo_id_global está sincronizado com disco */
     sincronizar_id_global();
