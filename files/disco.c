@@ -23,10 +23,9 @@ typedef struct { // header dp arquivo indices
 long tamanho_no_indice_disco(int t) {
     return (long)(2 * sizeof(int)) // 2 ints eh folha e nchaves
          + (long)(2*t - 1) * NOME_MAX // 2*t -1 que sao as chaves
-         + (long)(2*t)     * sizeof(int); // 2t que são os filhos
+         + (long)(2*t) * sizeof(int); // 2t que são os filhos
 }
 
-// helpers internos
 
 static CabecalhoIndices ler_cabecalho(void) {
     CabecalhoIndices cab = {0, -1, 0, 0, 1};
@@ -48,19 +47,17 @@ static void salvar_cabecalho(CabecalhoIndices *cab) {
     fclose(f);
 }
 
-/* ---- API pública ---- */
-
 void inicializar_disco(int t) {
     FILE *f = fopen(ARQ_INDICES, "rb");
     if (!f) {
-        /* Arquivo novo: cria cabeçalho */
+        // Arquivo novo: cria cabeçalho
         CabecalhoIndices cab = {t, -1, 0, 0, 1};
         f = fopen(ARQ_INDICES, "wb");
         if (!f) { perror("Erro ao criar indices.bin"); return; }
         fwrite(&cab, sizeof(CabecalhoIndices), 1, f);
         fclose(f);
     } else {
-        /* Arquivo existente: usa o t que já está gravado (ignora o parâmetro) */
+        // Arquivo existente: usa o t que já está gravado (ignora o parâmetro)
         fclose(f);
     }
 }
@@ -103,29 +100,36 @@ int gerar_novo_id_folha(void) {
     return id;
 }
 
-/* ---- Nós de índice ---- */
+// Nós de índice
 
 void salvar_no_indice(int id_no, NoIndice *no, int t) {
     FILE *f = fopen(ARQ_INDICES, "rb+");
-    if (!f) { perror("salvar_no_indice: fopen"); return; }
+    if (!f) {
+        perror("salvar_no_indice: fopen");
+        return;
+    }
 
     long offset = (long)sizeof(CabecalhoIndices)
                 + (long)id_no * tamanho_no_indice_disco(t);
+
     if (fseek(f, offset, SEEK_SET) != 0) {
-        perror("salvar_no_indice: fseek"); fclose(f); return;
+        perror("salvar_no_indice: fseek");
+        fclose(f);
+        return;
     }
 
-    /* eh_folha */
-    if (fwrite(&no->eh_folha,   sizeof(int), 1, f) != 1) goto erro;
-    /* num_chaves */
+    // eh_folha
+    if (fwrite(&no->eh_folha, sizeof(int), 1, f) != 1) goto erro;
+    // num_chaves
     if (fwrite(&no->num_chaves, sizeof(int), 1, f) != 1) goto erro;
-    /* chaves: sempre 2t-1 slots de NOME_MAX bytes */
+    /// chaves: sempre 2t-1 slots de NOME_MAX bytes
     for (int i = 0; i < 2*t - 1; i++) {
         char buf[NOME_MAX] = {0};
-        if (i < no->num_chaves) strncpy(buf, no->chaves[i], NOME_MAX - 1);
+        if (i < no->num_chaves)
+            strncpy(buf, no->chaves[i], NOME_MAX - 1);
         if (fwrite(buf, NOME_MAX, 1, f) != 1) goto erro;
     }
-    /* filhos: sempre 2t slots */
+    // filhos: sempre 2t slots
     for (int i = 0; i < 2*t; i++) {
         int filho = (i <= no->num_chaves) ? no->filhos[i] : -1;
         if (fwrite(&filho, sizeof(int), 1, f) != 1) goto erro;
@@ -140,7 +144,10 @@ erro:
 
 NoIndice *ler_no_indice(int id_no, int t) {
     FILE *f = fopen(ARQ_INDICES, "rb");
-    if (!f) { perror("ler_no_indice: fopen"); return NULL; }
+    if (!f) {
+        perror("ler_no_indice: fopen");
+        return NULL;
+    }
 
     // calculo do offset para saber a posição do nó a partir do id_no
     long offset = (long)sizeof(CabecalhoIndices) + (long)id_no * tamanho_no_indice_disco(t);
@@ -192,7 +199,7 @@ void liberar_no_indice(NoIndice *no, int t) {
     free(no);
 }
 
-/* ---- Folhas (um arquivo por folha) ---- */
+// folhas (um arquivo por folha)
 
 static void nome_arquivo_folha(char *buf, int id_folha) {
     snprintf(buf, 64, "dados/folha_%d.bin", id_folha);
@@ -202,10 +209,14 @@ void salvar_folha(int id_folha, NoFolha *folha, int t) {
     char nome[64];
     nome_arquivo_folha(nome, id_folha);
     FILE *f = fopen(nome, "wb");
-    if (!f) { perror("salvar_folha: fopen"); return; }
 
-    if (fwrite(&folha->num_registros,     sizeof(int), 1, f) != 1) goto erro;
-    if (fwrite(&folha->id_proxima_folha,  sizeof(int), 1, f) != 1) goto erro;
+    if (!f) {
+        perror("salvar_folha: fopen");
+        return;
+    }
+
+    if (fwrite(&folha->num_registros, sizeof(int), 1, f) != 1) goto erro;
+    if (fwrite(&folha->id_proxima_folha, sizeof(int), 1, f) != 1) goto erro;
 
     for (int i = 0; i < 2*t - 1; i++) {
         Registro vazia;

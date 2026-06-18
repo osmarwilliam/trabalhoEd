@@ -48,36 +48,42 @@ void inicializar_arquivo_hash(void) {
 
 /* ---- lê/escreve bloco na posição pos ---- */
 static int ler_bloco(FILE *f, int pos, BlocoHash *b) {
-    if (fseek(f, calcular_offset(pos), SEEK_SET) != 0) return 0;
+    if (fseek(f, calcular_offset(pos), SEEK_SET) != 0)
+        return 0;
     return fread(b, sizeof(BlocoHash), 1, f) == 1;
 }
+
 static int escrever_bloco(FILE *f, int pos, const BlocoHash *b) {
     if (fseek(f, calcular_offset(pos), SEEK_SET) != 0) return 0;
     return fwrite(b, sizeof(BlocoHash), 1, f) == 1;
 }
+
 static int ler_prox_overflow(FILE *f) {
     int v = TAM_HASH;
     fseek(f, (long)TAM_HASH * sizeof(BlocoHash), SEEK_SET);
     fread(&v, sizeof(int), 1, f);
     return v;
 }
+
 static void salvar_prox_overflow(FILE *f, int v) {
     fseek(f, (long)TAM_HASH * sizeof(BlocoHash), SEEK_SET);
     fwrite(&v, sizeof(int), 1, f);
 }
 
-/* -------------------------------------------------------
- * Inserção
- * ------------------------------------------------------- */
+//Inserção
+
 void inserir_relacionamento(Relacionamento rel) {
     FILE *f = fopen(ARQ_HASH, "rb+");
-    if (!f) { perror("inserir_relacionamento"); return; }
+    if (!f) {
+        perror("inserir_relacionamento");
+        return;
+    }
 
     int pos = calcular_hash(rel.id_filme);
     BlocoHash bloco;
     ler_bloco(f, pos, &bloco);
 
-    /* Se o bloco primário está livre ou é do mesmo filme */
+    // Se o bloco primário está livre ou é do mesmo filme
     if (bloco.id_filme == -1 || bloco.id_filme == rel.id_filme) {
         bloco.id_filme = rel.id_filme;
         if (bloco.num_relacionamentos < MAX_RELS_BLOCO) {
@@ -88,7 +94,7 @@ void inserir_relacionamento(Relacionamento rel) {
         }
     }
 
-    /* Percorre a cadeia de overflow */
+    // Percorre a cadeia de overflow
     int pos_anterior = pos;
     while (bloco.proximo_bloco != -1) {
         pos_anterior = bloco.proximo_bloco;
@@ -101,7 +107,7 @@ void inserir_relacionamento(Relacionamento rel) {
         }
     }
 
-    /* Precisa de novo bloco overflow */
+    // Precisa de novo bloco overflow
     int novo_pos = ler_prox_overflow(f);
     bloco.proximo_bloco = novo_pos;
     escrever_bloco(f, pos_anterior, &bloco);
@@ -117,9 +123,8 @@ void inserir_relacionamento(Relacionamento rel) {
     fclose(f);
 }
 
-/* -------------------------------------------------------
- * Busca: pessoas de um filme
- * ------------------------------------------------------- */
+// Busca: pessoas de um filme
+
 void buscar_pessoas_do_filme(int id_filme) {
     FILE *f = fopen(ARQ_HASH, "rb");
     if (!f) { perror("buscar_pessoas_do_filme"); return; }
@@ -154,12 +159,13 @@ void buscar_pessoas_do_filme(int id_filme) {
     fclose(f);
 }
 
-/* -------------------------------------------------------
- * Busca: filmes de uma pessoa
- * ------------------------------------------------------- */
+// Busca: filmes de uma pessoa
 void buscar_filmes_da_pessoa(int id_pessoa) {
     FILE *f = fopen(ARQ_HASH, "rb");
-    if (!f) { perror("buscar_filmes_da_pessoa"); return; }
+    if (!f) {
+        perror("buscar_filmes_da_pessoa");
+        return;
+    }
 
     int prox_overflow = ler_prox_overflow(f);
     int total_blocos  = prox_overflow; /* inclui primários e overflow */
@@ -192,9 +198,8 @@ void buscar_filmes_da_pessoa(int id_pessoa) {
     fclose(f);
 }
 
-/* -------------------------------------------------------
- * Helpers internos para consultas analíticas
- * ------------------------------------------------------- */
+// Helpers internos para consultas analíticas
+
 
 // Carrega TODOS os relacionamentos em memória ram para análise
 static Relacionamento *carregar_todos(int *total_out) {
@@ -208,7 +213,7 @@ static Relacionamento *carregar_todos(int *total_out) {
     int total_blocos  = prox_overflow;
 
     /* Estimativa conservadora */
-    int cap   = total_blocos * MAX_RELS_BLOCO + 1;
+    int cap = total_blocos * MAX_RELS_BLOCO + 1;
     Relacionamento *todos = (Relacionamento *)malloc(cap * sizeof(Relacionamento));
     int count = 0;
 
@@ -228,10 +233,16 @@ static Relacionamento *carregar_todos(int *total_out) {
     return todos;
 }
 
-static int decada(int ano) { return (ano / 10) * 10; }
+static int decada(int ano) {
+    return (ano / 10) * 10;
+}
 
 /* Conta participações por pessoa e papel */
-typedef struct { int id; char nome[NOME_MAX]; int contagem; } ContadorPessoa;
+typedef struct {
+    int id;
+    char nome[NOME_MAX];
+    int contagem;
+} ContadorPessoa;
 
 static int cmp_contagem_desc(const void *a, const void *b) {
     return ((ContadorPessoa *)b)->contagem - ((ContadorPessoa *)a)->contagem;
@@ -240,8 +251,7 @@ static int cmp_contagem_asc(const void *a, const void *b) {
     return ((ContadorPessoa *)a)->contagem - ((ContadorPessoa *)b)->contagem;
 }
 
-static ContadorPessoa *contar_por_papel(Relacionamento *todos, int total,
-                                         char papel, int *n_out) {
+static ContadorPessoa *contar_por_papel(Relacionamento *todos, int total, char papel, int *n_out) {
     ContadorPessoa *buf = (ContadorPessoa *)malloc(total * sizeof(ContadorPessoa));
     int n = 0;
     for (int i = 0; i < total; i++) {
@@ -265,19 +275,17 @@ static ContadorPessoa *contar_por_papel(Relacionamento *todos, int total,
 }
 
 /* Lista de títulos para uma pessoa/papel */
-static void listar_filmes_de(Relacionamento *todos, int total,
-                              int id_pessoa, char papel) {
+static void listar_filmes_de(Relacionamento *todos, int total, int id_pessoa, char papel) {
     for (int i = 0; i < total; i++) {
         if (todos[i].id_pessoa == id_pessoa && todos[i].papel == papel)
             printf("      \"%s\"\n", todos[i].titulo_filme);
     }
 }
 
-/* -------------------------------------------------------
- * (a) Todos que trabalharam juntos num mesmo filme
- * ------------------------------------------------------- */
+//(a) Todos que trabalharam juntos num mesmo filme
 void consulta_a_todos_juntos(void) {
-    int total; Relacionamento *todos = carregar_todos(&total);
+    int total;
+    Relacionamento *todos = carregar_todos(&total);
     if (!todos) return;
 
     printf("\n=== (a) Pessoas que trabalharam juntas ===\n");
@@ -296,11 +304,10 @@ void consulta_a_todos_juntos(void) {
     free(todos);
 }
 
-/* -------------------------------------------------------
- * (b) Atores e diretores que trabalharam juntos
- * ------------------------------------------------------- */
+//(b) Atores e diretores que trabalharam juntos
 void consulta_b_atores_diretores(void) {
-    int total; Relacionamento *todos = carregar_todos(&total);
+    int total;
+    Relacionamento *todos = carregar_todos(&total);
     if (!todos) return;
 
     printf("\n=== (b) Atores e diretores que trabalharam juntos ===\n");
@@ -318,11 +325,10 @@ void consulta_b_atores_diretores(void) {
     free(todos);
 }
 
-/* -------------------------------------------------------
- * (c) Atores que atuaram juntos
- * ------------------------------------------------------- */
+ //c) Atores que atuaram juntos
 void consulta_c_atores_juntos(void) {
-    int total; Relacionamento *todos = carregar_todos(&total);
+    int total;
+    Relacionamento *todos = carregar_todos(&total);
     if (!todos) return;
 
     printf("\n=== (c) Atores que atuaram juntos ===\n");
@@ -341,11 +347,11 @@ void consulta_c_atores_juntos(void) {
     free(todos);
 }
 
-/* -------------------------------------------------------
- * (d) Atores que mais atuaram juntos por década
- * ------------------------------------------------------- */
+ // (d) Atores que mais atuaram juntos por década
+
 void consulta_d_atores_juntos_decada(void) {
-    int total; Relacionamento *todos = carregar_todos(&total);
+    int total;
+    Relacionamento *todos = carregar_todos(&total);
     if (!todos) return;
 
     printf("\n=== (d) Duplas de atores que mais atuaram juntas por decada ===\n");
@@ -414,11 +420,11 @@ void consulta_d_atores_juntos_decada(void) {
     free(todos);
 }
 
-/* -------------------------------------------------------
- * (e) Atores e diretores que trabalharam juntos por década
- * ------------------------------------------------------- */
+//(e) Atores e diretores que trabalharam juntos por década
+
 void consulta_e_ator_diretor_decada(void) {
-    int total; Relacionamento *todos = carregar_todos(&total);
+    int total;
+    Relacionamento *todos = carregar_todos(&total);
     if (!todos) return;
 
     printf("\n=== (e) Atores e diretores que trabalharam juntos por decada ===\n");
@@ -453,11 +459,9 @@ void consulta_e_ator_diretor_decada(void) {
     free(todos);
 }
 
-/* -------------------------------------------------------
- * Helpers (f)–(k): ranking por papel + lista de filmes
- * ------------------------------------------------------- */
-static void ranking_por_papel(Relacionamento *todos, int total, char papel,
-                               const char *titulo_papel, int mais) {
+// Helpers (f)–(k): ranking por papel + lista de filmes
+
+static void ranking_por_papel(Relacionamento *todos, int total, char papel, const char *titulo_papel, int mais) {
     int n;
     ContadorPessoa *cnt = contar_por_papel(todos, total, papel, &n);
     if (!n) { free(cnt); return; }
@@ -481,42 +485,46 @@ static void ranking_por_papel(Relacionamento *todos, int total, char papel,
     free(cnt);
 }
 
-/* (f) */
+// (f)
 void consulta_f_atores_mais_atuaram(void) {
     int total; Relacionamento *todos = carregar_todos(&total);
     printf("\n=== (f) Atores que mais atuaram ===");
     ranking_por_papel(todos, total, 'A', "Ator", 1);
     free(todos);
 }
-/* (g) */
+
+// (g)
 void consulta_g_atores_menos_atuaram(void) {
     int total; Relacionamento *todos = carregar_todos(&total);
     printf("\n=== (g) Atores que menos atuaram ===");
     ranking_por_papel(todos, total, 'A', "Ator", 0);
     free(todos);
 }
-/* (h) */
+
+// (h)
 void consulta_h_diretores_mais(void) {
     int total; Relacionamento *todos = carregar_todos(&total);
     printf("\n=== (h) Diretores que mais dirigiram ===");
     ranking_por_papel(todos, total, 'D', "Diretor", 1);
     free(todos);
 }
-/* (i) */
+// (i)
 void consulta_i_diretores_menos(void) {
     int total; Relacionamento *todos = carregar_todos(&total);
     printf("\n=== (i) Diretores que menos dirigiram ===");
     ranking_por_papel(todos, total, 'D', "Diretor", 0);
     free(todos);
 }
-/* (j) */
+
+// (j)
 void consulta_j_produtores_mais(void) {
     int total; Relacionamento *todos = carregar_todos(&total);
     printf("\n=== (j) Produtores mais atuantes ===");
     ranking_por_papel(todos, total, 'P', "Produtor", 1);
     free(todos);
 }
-/* (k) */
+
+// (k)
 void consulta_k_produtores_menos(void) {
     int total; Relacionamento *todos = carregar_todos(&total);
     printf("\n=== (k) Produtores menos atuantes ===");
@@ -524,9 +532,9 @@ void consulta_k_produtores_menos(void) {
     free(todos);
 }
 
-/* -------------------------------------------------------
- * (l) Consultas (f)–(k) por década
- * ------------------------------------------------------- */
+
+//(l) Consultas (f)–(k) por década
+
 void consulta_l_f_a_k_por_decada(void) {
     int total; // qtd de relacionamentos
     Relacionamento *todos = carregar_todos(&total);
@@ -580,14 +588,15 @@ void consulta_l_f_a_k_por_decada(void) {
     free(todos);
 }
 
-/* -------------------------------------------------------
- * (m) Filmes que são continuações
- * Heurística: título de um filme é prefixo de outro
- * (ex: "The Matrix" é prefixo de "The Matrix Reloaded")
- * ------------------------------------------------------- */
-typedef struct { char titulo[NOME_MAX]; int ano; } InfoFilme;
+// (m) Filmes que são continuações
+//(ex: "The Matrix" é prefixo de "The Matrix Reloaded")
+
+typedef struct { char titulo[NOME_MAX];
+    int ano;
+} InfoFilme;
+
 static InfoFilme g_filmes_m[500];
-static int       g_nf_m = 0;
+static int g_nf_m = 0;
 
 static void coletar_filme_cb(const Registro *r) {
     if (r->tipo == TIPO_FILME && g_nf_m < 500) {
@@ -619,9 +628,8 @@ void consulta_m_filmes_continuacao(void) {
     if (!encontrou) printf("  Nenhuma continuacao detectada.\n");
 }
 
-/* -------------------------------------------------------
- * (n) Atores que nasceram no mesmo ano
- * ------------------------------------------------------- */
+// (n) Atores que nasceram no mesmo ano
+
 void consulta_n_atores_mesmo_ano(void) {
     printf("\n=== (n) Atores que nasceram no mesmo ano ===\n");
 
@@ -629,7 +637,8 @@ void consulta_n_atores_mesmo_ano(void) {
     InfoPessoa pessoas[500]; int np = 0;
 
     /* Coleta todos via hash (atores têm papel 'A') */
-    int total; Relacionamento *todos = carregar_todos(&total);
+    int total;
+    Relacionamento *todos = carregar_todos(&total);
     if (!todos) return;
 
     for (int i = 0; i < total; i++) {
@@ -662,9 +671,8 @@ void consulta_n_atores_mesmo_ano(void) {
     free(todos);
 }
 
-/* -------------------------------------------------------
- * (o) Atores que já dirigiram
- * ------------------------------------------------------- */
+ //(o) Atores que já dirigiram
+
 void consulta_o_atores_que_dirigiram(void) {
     int total; Relacionamento *todos = carregar_todos(&total);
     if (!todos) return;
@@ -687,9 +695,8 @@ void consulta_o_atores_que_dirigiram(void) {
     free(todos);
 }
 
-/* -------------------------------------------------------
- * (p) Atores que já produziram
- * ------------------------------------------------------- */
+ //(p) Atores que já produziram
+
 void consulta_p_atores_que_produziram(void) {
     int total; Relacionamento *todos = carregar_todos(&total);
     if (!todos) return;
@@ -712,13 +719,14 @@ void consulta_p_atores_que_produziram(void) {
     free(todos);
 }
 
-/* -------------------------------------------------------
- * (q) Retirar todos os relacionamentos de um filme
- * (não remove o filme da árvore, só os relacionamentos)
- * ------------------------------------------------------- */
+ //(q) Retirar todos os relacionamentos de um filme
+ //(não remove o filme da árvore, só os relacionamentos)
 void consulta_q_retirar_todos_do_filme(int id_filme) {
     FILE *f = fopen(ARQ_HASH, "rb+");
-    if (!f) { perror("consulta_q"); return; }
+    if (!f) {
+        perror("consulta_q");
+        return;
+    }
 
     int pos = calcular_hash(id_filme);
     BlocoHash bloco;
@@ -741,11 +749,11 @@ void consulta_q_retirar_todos_do_filme(int id_filme) {
     remover_por_id(id_filme);
 }
 
-/* -------------------------------------------------------
- * (r) Filmes em que a mesma pessoa escreveu, dirigiu e produziu
- * ------------------------------------------------------- */
+
+// (r) Filmes em que a mesma pessoa escreveu, dirigiu e produziu
 void consulta_r_escreveu_dirigiu_produziu(void) {
-    int total; Relacionamento *todos = carregar_todos(&total);
+    int total;
+    Relacionamento *todos = carregar_todos(&total);
     if (!todos) return;
 
     printf("\n=== (r) Filmes onde a mesma pessoa escreveu, dirigiu e produziu ===\n");
@@ -769,11 +777,10 @@ void consulta_r_escreveu_dirigiu_produziu(void) {
     free(todos);
 }
 
-/* -------------------------------------------------------
- * (s) Filmes em que a mesma pessoa dirigiu e produziu
- * ------------------------------------------------------- */
+ //(s) Filmes em que a mesma pessoa dirigiu e produziu
 void consulta_s_dirigiu_e_produziu(void) {
-    int total; Relacionamento *todos = carregar_todos(&total);
+    int total;
+    Relacionamento *todos = carregar_todos(&total);
     if (!todos) return;
 
     printf("\n=== (s) Filmes onde a mesma pessoa dirigiu e produziu ===\n");
@@ -792,9 +799,8 @@ void consulta_s_dirigiu_e_produziu(void) {
     free(todos);
 }
 
-/* -------------------------------------------------------
- * (t) Atores que nasceram no ano de lançamento de um filme
- * ------------------------------------------------------- */
+ //(t) Atores que nasceram no ano de lançamento de um filme
+
 void consulta_t_ator_nasceu_no_ano_do_filme(void) {
     int total; Relacionamento *todos = carregar_todos(&total);
     if (!todos) return;

@@ -7,13 +7,15 @@
 
 static int grau_t = -1;
 
-/* -------------------------------------------------------
- * Stack de ancestrais usada durante inserção/remoção.
- * Guarda pares (id_no, indice_filho_seguido).
- * ------------------------------------------------------- */
-typedef struct { int id_no; int idx_filho; } EntradaStack;
+//Stack de ancestrais usada durante inserção/remoção.
+// Guarda pares (id_no, indice_filho_seguido).
+typedef struct {
+    int id_no;
+    int idx_filho;
+} EntradaStack;
+
 static EntradaStack stack_pais[MAX_ALTURA];
-static int          stack_top = 0;
+static int stack_top = 0;
 
 static void stack_push(int id_no, int idx_filho) {
     if (stack_top >= MAX_ALTURA) {
@@ -29,70 +31,67 @@ static EntradaStack stack_pop(void) {
     return stack_pais[--stack_top];
 }
 
- //Inicialização
+ // inicialização
 void inicializar_arvore(int t) {
     grau_t = t;
-    inicializar_disco(t);
-    /* Se já inicializado em sessão anterior, usa o t gravado */
+
+    // cria o arquivo indice caso n exista e coloca o cabecalho no inicio
+    inicializar_disco(t); // se ja tiver inicializada n faz nd
+
+    // Se já inicializado em sessão anterior, usa o t gravado
     int t_disco = ler_grau_t();
-    if (t_disco != -1) grau_t = t_disco;
+    if (t_disco != -1) //caso já exista algum t no cabecalho
+        grau_t = t_disco;
 
     int raiz = ler_raiz_id();
-    if (raiz == -1) {
-        /* Cria folha vazia e raiz apontando para ela */
+    if (raiz == -1) { // caso n exista nenhuma folha ainda
+        // Cria folha vazia e raiz apontando para ela
         int id_folha = gerar_novo_id_folha();
         NoFolha *folha = (NoFolha *)malloc(sizeof(NoFolha));
-        folha->registros        = (Registro *)calloc(2*grau_t - 1, sizeof(Registro));
-        folha->num_registros    = 0;
-        folha->id_proxima_folha = -1;
+        folha->registros = (Registro *)calloc(2*grau_t - 1, sizeof(Registro));
+        folha->num_registros = 0; // nchaves
+        folha->id_proxima_folha = -1; // n aponta para nenhuma folha
         salvar_folha(id_folha, folha, grau_t);
         liberar_folha(folha);
 
+        // cria o no indice para armazenar as infos no arquivo indice
         int id_raiz = gerar_novo_id_indice();
         NoIndice *raiz_no = (NoIndice *)malloc(sizeof(NoIndice));
         raiz_no->chaves = (char **)malloc((2*grau_t - 1) * sizeof(char *));
         for (int i = 0; i < 2*grau_t - 1; i++)
             raiz_no->chaves[i] = (char *)calloc(NOME_MAX, 1);
         raiz_no->filhos = (int *)malloc((2*grau_t) * sizeof(int));
-        for (int i = 0; i < 2*grau_t; i++) raiz_no->filhos[i] = -1;
-        raiz_no->eh_folha   = 1;
+        for (int i = 0; i < 2*grau_t; i++)
+            raiz_no->filhos[i] = -1;
+        raiz_no->eh_folha = 1;
         raiz_no->num_chaves = 0;
-        raiz_no->filhos[0]  = id_folha;
+        raiz_no->filhos[0] = id_folha;
         salvar_no_indice(id_raiz, raiz_no, grau_t);
         salvar_raiz_id(id_raiz);
         liberar_no_indice(raiz_no, grau_t);
     }
 }
 
-/* -------------------------------------------------------
- * Navegação: desce até o nó folha correto para `chave`.
- * Em B+, a chave copiada no nó interno é a PRIMEIRA chave
- * da folha DIREITA. Logo, se chave == chave_interna, o
- * registro está na folha DIREITA → usamos >= 0 (avança i).
- * Preenche stack_pais com o caminho percorrido.
- * ------------------------------------------------------- */
 static int descer_ate_folha(int id_no, const char *chave, int guardar_stack) {
     NoIndice *no = ler_no_indice(id_no, grau_t);
     if (!no) return -1;
 
     int i = 0;
-    /* >= 0: igualdade avança para o filho direito (folha que contém a chave) */
+    // >= 0: igualdade avança para o filho direito (folha que contém a chave)
     while (i < no->num_chaves && strcmp(chave, no->chaves[i]) >= 0)
         i++;
 
     int id_filho = no->filhos[i];
     int eh_folha = no->eh_folha;
     liberar_no_indice(no, grau_t);
-
+    // preenche stack_pais com o caminho percorrido, apenas se for insercao ou remocao
     if (guardar_stack) stack_push(id_no, i);
 
     if (eh_folha) return id_filho;
     return descer_ate_folha(id_filho, chave, guardar_stack);
 }
 
-/* -------------------------------------------------------
- * Primeira folha (varredura sequencial)
- * ------------------------------------------------------- */
+//Primeira folha (varredura sequencial), vai descendo toda esquerda até chegar na folha mais a esquerda possivel
 static int obter_primeira_folha(int id_no) {
     NoIndice *no = ler_no_indice(id_no, grau_t);
     if (!no) return -1;
@@ -103,28 +102,28 @@ static int obter_primeira_folha(int id_no) {
     return obter_primeira_folha(filho_esq);
 }
 
-/* -------------------------------------------------------
- * Varredura completa para consultas analíticas
- * ------------------------------------------------------- */
+// Varredura completa para consultas
 void varredura_folhas(void (*callback)(const Registro *)) {
-    if (grau_t == -1) grau_t = ler_grau_t();
+    if (grau_t == -1)
+        grau_t = ler_grau_t();
     int raiz = ler_raiz_id();
-    if (raiz == -1) return;
+    if (raiz == -1)
+        return;
+    // passo a raiz e vou recursivamente até acha a folha mais a esquerda
     int id_folha = obter_primeira_folha(raiz);
     while (id_folha != -1) {
         NoFolha *folha = ler_folha(id_folha, grau_t);
-        if (!folha) break;
+        if (!folha)
+            break;
         for (int i = 0; i < folha->num_registros; i++)
-            callback(&folha->registros[i]);
+            callback(&folha->registros[i]); // chamo a funcao externa
         int prox = folha->id_proxima_folha;
         liberar_folha(folha);
         id_folha = prox;
     }
 }
 
-/* -------------------------------------------------------
- * Buscas
- * ------------------------------------------------------- */
+ // Buscas
 Registro *buscar_por_nome(const char *nome) {
     if (grau_t == -1) grau_t = ler_grau_t();
     int raiz = ler_raiz_id();
@@ -148,7 +147,7 @@ Registro *buscar_por_nome(const char *nome) {
     return resultado;
 }
 
-/* busca por ID: varredura linear (ID não é a chave da árvore) */
+// busca por ID: varredura linear (ID não é a chave da árvore)
 Registro *buscar_por_id(int id) {
     if (grau_t == -1) grau_t = ler_grau_t();
     int raiz = ler_raiz_id();
@@ -176,9 +175,8 @@ Registro *buscar_por_id(int id) {
     return NULL;
 }
 
-/* -------------------------------------------------------
- * Inserção auxiliar: insere reg ordenado em folha não cheia
- * ------------------------------------------------------- */
+// inserção auxiliar: insere reg ordenado em folha não cheia
+
 static void inserir_na_folha(int id_folha, Registro reg) {
     NoFolha *folha = ler_folha(id_folha, grau_t);
     if (!folha) return;
@@ -193,9 +191,7 @@ static void inserir_na_folha(int id_folha, Registro reg) {
     liberar_folha(folha);
 }
 
-/* -------------------------------------------------------
- * Inserção com split e propagação
- * ------------------------------------------------------- */
+ // Inserção com split e propagação
 void inserir_registro(Registro reg) {
     if (grau_t == -1) grau_t = ler_grau_t();
     int raiz = ler_raiz_id();
@@ -206,15 +202,16 @@ void inserir_registro(Registro reg) {
     if (!folha) return;
 
     if (folha->num_registros < 2*grau_t - 1) {
-        /* Folha tem espaço — insere diretamente */
+        // Folha tem espaço — insere diretamente
         liberar_folha(folha);
         inserir_na_folha(id_folha, reg);
         return;
     }
 
-    /* --- Split da folha --- */
+    // Split da folha
     Registro *temp = (Registro *)malloc(2*grau_t * sizeof(Registro));
-    for (int i = 0; i < folha->num_registros; i++) temp[i] = folha->registros[i];
+    for (int i = 0; i < folha->num_registros; i++)
+        temp[i] = folha->registros[i];
 
     int pos = 2*grau_t - 1;
     while (pos > 0 && strcmp(reg.chave, temp[pos-1].chave) < 0) {
@@ -228,33 +225,36 @@ void inserir_registro(Registro reg) {
     NoFolha *nova_folha = (NoFolha *)malloc(sizeof(NoFolha));
     nova_folha->registros = (Registro *)malloc((2*grau_t - 1) * sizeof(Registro));
 
-    folha->num_registros    = grau_t;
+    folha->num_registros = grau_t;
     nova_folha->num_registros = grau_t;
-    for (int i = 0; i < grau_t; i++) folha->registros[i]      = temp[i];
-    for (int i = 0; i < grau_t; i++) nova_folha->registros[i] = temp[grau_t + i];
+    for (int i = 0; i < grau_t; i++)
+        folha->registros[i] = temp[i];
+    for (int i = 0; i < grau_t; i++)
+        nova_folha->registros[i] = temp[grau_t + i];
 
     nova_folha->id_proxima_folha = folha->id_proxima_folha;
-    folha->id_proxima_folha      = novo_id_folha;
+    folha->id_proxima_folha = novo_id_folha;
 
-    /* Chave copiada para o pai: primeira chave da folha direita */
+    // Chave copiada para o pai: primeira chave da folha direita
     char chave_promovida[NOME_MAX];
     strncpy(chave_promovida, nova_folha->registros[0].chave, NOME_MAX - 1);
     chave_promovida[NOME_MAX - 1] = '\0';
 
-    salvar_folha(id_folha,      folha,      grau_t);
+    salvar_folha(id_folha, folha, grau_t);
     salvar_folha(novo_id_folha, nova_folha, grau_t);
     liberar_folha(folha);
     liberar_folha(nova_folha);
     free(temp);
 
-    /* --- Propaga split para os nós internos --- */
+    // Propaga split para os nós internos
     int id_filho_direito = novo_id_folha;
 
     while (stack_top > 0) {
         EntradaStack entrada = stack_pop();
         int id_pai  = entrada.id_no;
         NoIndice *pai = ler_no_indice(id_pai, grau_t);
-        if (!pai) return;
+        if (!pai)
+            return;
 
         if (pai->num_chaves < 2*grau_t - 1) {
             /* Pai tem espaço — insere chave e filho */
@@ -272,7 +272,7 @@ void inserir_registro(Registro reg) {
             return;
         }
 
-        /* --- Split do nó interno ---
+        /* split do nó interno
          * O pai tem 2t-1 chaves e 2t filhos (cheio).
          * Apos inserir chave_promovida ficamos com 2t chaves e 2t+1 filhos.
          * A chave do meio (indice t) sobe; esquerda fica com t-1, direita com t.
@@ -340,15 +340,15 @@ void inserir_registro(Registro reg) {
         for (int i = 0; i < n_tmp; i++) free(tc[i]);
         free(tc); free(tf);
 
-        salvar_no_indice(id_pai,         pai,    grau_t);
+        salvar_no_indice(id_pai, pai, grau_t);
         salvar_no_indice(novo_id_indice, novo_no, grau_t);
-        liberar_no_indice(pai,    grau_t);
+        liberar_no_indice(pai, grau_t);
         liberar_no_indice(novo_no, grau_t);
 
         strncpy(chave_promovida, nova_promovida, NOME_MAX);
         id_filho_direito = novo_id_indice;
 
-        /* Se o nó que acabou de splittar era a raiz, cria nova raiz */
+        // Se o nó que acabou de splittar era a raiz, cria nova raiz
         if (id_pai == ler_raiz_id()) {
             int nova_raiz_id = gerar_novo_id_indice();
             NoIndice *nova_raiz = (NoIndice *)malloc(sizeof(NoIndice));
@@ -387,9 +387,8 @@ void inserir_filme(Filme novo_filme) {
     inserir_registro(reg);
 }
 
-/* -------------------------------------------------------
- * Remoção — com propagação de underflow nos nós internos
- * ------------------------------------------------------- */
+// Remoção — com propagação de underflow nos nós internos
+
 void remover_registro(const char *nome) {
     if (grau_t == -1) grau_t = ler_grau_t();
     int raiz = ler_raiz_id();
@@ -397,12 +396,18 @@ void remover_registro(const char *nome) {
     stack_top = 0;
     int id_folha = descer_ate_folha(raiz, nome, 1);
     NoFolha *folha = ler_folha(id_folha, grau_t);
-    if (!folha) { printf("Registro '%s' nao encontrado.\n", nome); return; }
+    if (!folha) {
+        printf("Registro '%s' nao encontrado.\n", nome);
+        return;
+    }
 
     /* Localiza o registro na folha */
     int pos = -1;
     for (int i = 0; i < folha->num_registros; i++) {
-        if (strcmp(folha->registros[i].chave, nome) == 0) { pos = i; break; }
+        if (strcmp(folha->registros[i].chave, nome) == 0) {
+            pos = i;
+            break;
+        }
     }
     if (pos == -1) {
         printf("Registro '%s' nao encontrado.\n", nome);
@@ -416,31 +421,34 @@ void remover_registro(const char *nome) {
     salvar_folha(id_folha, folha, grau_t);
     printf("Registro '%s' removido com sucesso.\n", nome);
 
-    /* --- Rebalanceia folha se necessário --- */
+    // --- Rebalanceia folha se necessário
     if (folha->num_registros >= grau_t - 1 || stack_top == 0) {
         liberar_folha(folha);
         return;  /* sem underflow ou é raiz */
     }
 
-    /* Trabalha com id_folha_atual como nó com underflow */
+    // Trabalha com id_folha_atual como nó com underflow
     int id_atual = id_folha;
     NoFolha *folha_atual = folha; /* já temos ela em memória */
 
-    /* ---- loop de propagação de underflow ---- */
+    // loop de propagação de underflow
     while (stack_top > 0) {
         EntradaStack entrada = stack_pop();
         int id_pai   = entrada.id_no;
         int pos_pai  = entrada.idx_filho; /* índice que leva ao nó com underflow */
 
         NoIndice *pai = ler_no_indice(id_pai, grau_t);
-        if (!pai) { liberar_folha(folha_atual); return; }
+        if (!pai) {
+            liberar_folha(folha_atual);
+            return;
+        }
 
         int balanceado = 0;
 
         if (folha_atual != NULL) {
-            /* Rebalancear folha */
+            // Rebalancear folha
 
-            /* 1. Emprestar do irmão esquerdo */
+            //1. Emprestar do irmão esquerdo
             if (pos_pai > 0 && !balanceado) {
                 int id_esq   = pai->filhos[pos_pai - 1];
                 NoFolha *esq = ler_folha(id_esq, grau_t);
@@ -452,14 +460,14 @@ void remover_registro(const char *nome) {
                     esq->num_registros--;
                     strncpy(pai->chaves[pos_pai - 1], folha_atual->registros[0].chave, NOME_MAX);
                     salvar_folha(id_atual, folha_atual, grau_t);
-                    salvar_folha(id_esq,   esq,         grau_t);
+                    salvar_folha(id_esq, esq, grau_t);
                     salvar_no_indice(id_pai, pai, grau_t);
                     balanceado = 1;
                 }
                 liberar_folha(esq);
             }
 
-            /* 2. Emprestar do irmão direito */
+            // 2. Emprestar do irmão direito
             if (pos_pai < pai->num_chaves && !balanceado) {
                 int id_dir   = pai->filhos[pos_pai + 1];
                 NoFolha *dir = ler_folha(id_dir, grau_t);
@@ -478,10 +486,10 @@ void remover_registro(const char *nome) {
                 liberar_folha(dir);
             }
 
-            /* 3. Merge com irmão */
+            // 3. Merge com irmão
             if (!balanceado) {
                 if (pos_pai > 0) {
-                    /* Merge: folha_atual vai para o irmão esquerdo */
+                    // Merge: folha_atual vai para o irmão esquerdo
                     int id_esq   = pai->filhos[pos_pai - 1];
                     NoFolha *esq = ler_folha(id_esq, grau_t);
                     for (int i = 0; i < folha_atual->num_registros; i++)
@@ -497,9 +505,10 @@ void remover_registro(const char *nome) {
                     salvar_folha(id_esq, esq, grau_t);
                     liberar_folha(esq);
                 } else {
-                    /* Merge: irmão direito vai para folha_atual */
+                    // Merge: irmão direito vai para folha_atual
                     int id_dir   = pai->filhos[pos_pai + 1];
                     NoFolha *dir = ler_folha(id_dir, grau_t);
+
                     for (int i = 0; i < dir->num_registros; i++)
                         folha_atual->registros[folha_atual->num_registros + i] = dir->registros[i];
                     folha_atual->num_registros  += dir->num_registros;
@@ -526,9 +535,12 @@ void remover_registro(const char *nome) {
             /* Rebalancear nó INTERNO com underflow */
             /* (id_atual agora é o id do nó interno com underflow) */
             NoIndice *no_uf = ler_no_indice(id_atual, grau_t);
-            if (!no_uf) { liberar_no_indice(pai, grau_t); return; }
+            if (!no_uf) {
+                liberar_no_indice(pai, grau_t);
+                return;
+            }
 
-            /* 1. Emprestar do nó interno esquerdo */
+            // 1. Emprestar do nó interno esquerdo
             if (pos_pai > 0 && !balanceado) {
                 int id_esq    = pai->filhos[pos_pai - 1];
                 NoIndice *esq = ler_no_indice(id_esq, grau_t);
@@ -552,15 +564,17 @@ void remover_registro(const char *nome) {
                 liberar_no_indice(esq, grau_t);
             }
 
-            /* 2. Emprestar do nó interno direito */
+            // 2. Emprestar do nó interno direito
             if (pos_pai < pai->num_chaves && !balanceado) {
                 int id_dir    = pai->filhos[pos_pai + 1];
                 NoIndice *dir = ler_no_indice(id_dir, grau_t);
                 if (dir && dir->num_chaves > grau_t - 1) {
+
                     strncpy(no_uf->chaves[no_uf->num_chaves], pai->chaves[pos_pai], NOME_MAX);
                     no_uf->filhos[no_uf->num_chaves + 1] = dir->filhos[0];
                     no_uf->num_chaves++;
                     strncpy(pai->chaves[pos_pai], dir->chaves[0], NOME_MAX);
+
                     for (int i = 0; i < dir->num_chaves - 1; i++) {
                         strncpy(dir->chaves[i], dir->chaves[i+1], NOME_MAX);
                         dir->filhos[i] = dir->filhos[i+1];
@@ -568,14 +582,14 @@ void remover_registro(const char *nome) {
                     dir->filhos[dir->num_chaves - 1] = dir->filhos[dir->num_chaves];
                     dir->num_chaves--;
                     salvar_no_indice(id_atual, no_uf, grau_t);
-                    salvar_no_indice(id_dir,   dir,   grau_t);
-                    salvar_no_indice(id_pai,   pai,   grau_t);
+                    salvar_no_indice(id_dir, dir, grau_t);
+                    salvar_no_indice(id_pai, pai, grau_t);
                     balanceado = 1;
                 }
                 liberar_no_indice(dir, grau_t);
             }
 
-            /* 3. Merge de nós internos */
+            // 3. Merge de nós internos
             if (!balanceado) {
                 if (pos_pai > 0) {
                     int id_esq    = pai->filhos[pos_pai - 1];
@@ -621,7 +635,7 @@ void remover_registro(const char *nome) {
             liberar_no_indice(no_uf, grau_t);
         }
 
-        /* Se o pai ficou abaixo do mínimo e ainda temos ancestrais, continua */
+        // Se o pai ficou abaixo do mínimo e ainda temos ancestrais, continua
         if (balanceado || pai->num_chaves >= grau_t - 1 || stack_top == 0) {
             /* Verifica se a raiz ficou vazia após merge */
             int raiz_id = ler_raiz_id();
@@ -656,9 +670,9 @@ void remover_por_id(int id) {
     }
 }
 
-/* -------------------------------------------------------
- * Impressão em formato de árvore
- * ------------------------------------------------------- */
+
+// impressão em formato de árvore
+
 static void imprimir_no_recursivo(int id_no, int nivel) {
     NoIndice *no = ler_no_indice(id_no, grau_t);
     if (!no) return;

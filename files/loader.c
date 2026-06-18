@@ -7,10 +7,9 @@
 #include "disco.h"
 #include "structs.h"
 
-/* -------------------------------------------------------
- * ID global — lido do disco ao iniciar, salvo a cada uso.
- * Isso evita colisão de IDs entre sessões.
- * ------------------------------------------------------- */
+ //ID global — lido do disco ao iniciar, salvo a cada uso.
+ //Isso evita colisão de IDs entre sessões.
+
 static int proximo_id_global = 1;
 
 static void sincronizar_id_global(void) {
@@ -24,20 +23,17 @@ static int proximo_id(void) {
     return id;
 }
 
-/* -------------------------------------------------------
- * Remove espaços/tabs/\r\n das bordas de uma string
- * ------------------------------------------------------- */
+//Remove espaços/tabs/\r\n das bordas de uma string
+
 void remover_espacos_extras(char *str) {
     if (!str || *str == '\0') return;
 
     int inicio = 0;
-    while (str[inicio] == ' ' || str[inicio] == '\t' ||
-           str[inicio] == '\r' || str[inicio] == '\n')
+    while (str[inicio] == ' ' || str[inicio] == '\t' || str[inicio] == '\r' || str[inicio] == '\n')
         inicio++;
 
     int fim = (int)strlen(str) - 1;
-    while (fim >= inicio && (str[fim] == ' ' || str[fim] == '\t' ||
-                              str[fim] == '\r' || str[fim] == '\n'))
+    while (fim >= inicio && (str[fim] == ' ' || str[fim] == '\t' || str[fim] == '\r' || str[fim] == '\n'))
         fim--;
 
     int j = 0;
@@ -45,9 +41,8 @@ void remover_espacos_extras(char *str) {
     str[j] = '\0';
 }
 
-/* -------------------------------------------------------
- * Helpers para obter IDs consultando a árvore B+
- * ------------------------------------------------------- */
+ // Helpers para obter IDs consultando a árvore B+
+
 static int obter_id_filme(const char *titulo) {
     Registro *reg = buscar_por_nome(titulo);
     if (reg && reg->tipo == TIPO_FILME) {
@@ -70,15 +65,14 @@ static int obter_id_pessoa(const char *nome) {
     return -1;
 }
 
-/* -------------------------------------------------------
- * Processa uma linha do Nodes.txt
- * Formatos:
- *   Movie | titulo | ano | tagline
- *   Person | nome | ano_nascimento
- * ------------------------------------------------------- */
+// Processa uma linha do Nodes.txt
+// Formatos:
+//   Movie | titulo | ano | tagline
+//  Person | nome | ano_nascimento
 static void processar_node(char *buffer) {
     char *token = strtok(buffer, "|");
-    if (!token) return;
+    if (!token)
+        return;
 
     char tipo[50] = {0};
     strncpy(tipo, token, 49);
@@ -130,15 +124,12 @@ static void processar_node(char *buffer) {
     }
 }
 
-/* -------------------------------------------------------
- * Processa uma linha do Relationships.txt
- *
- * Formatos possíveis:
- *   START Person | <nome> | ACTED_IN | END Movie | <titulo> | role: <papel>
- *   START Person | <nome> | DIRECTED | END Movie | <titulo>
- *   START Person | <nome> | PRODUCED | END Movie | <titulo>
- *   START Person | <nome> | WROTE    | END Movie | <titulo>
- * ------------------------------------------------------- */
+// Processa uma linha do Relationships.txt
+//Formatos possíveis:
+//  START Person | <nome> | ACTED_IN | END Movie | <titulo> | role: <papel>
+//   START Person | <nome> | DIRECTED | END Movie | <titulo>
+//   START Person | <nome> | PRODUCED | END Movie | <titulo>
+//   START Person | <nome> | WROTE    | END Movie | <titulo>
 static void processar_relacionamento(char *buffer) {
     /* Localiza "START Person | " */
     char *ptr_pessoa = strstr(buffer, "START Person | ");
@@ -210,9 +201,7 @@ static void processar_relacionamento(char *buffer) {
     inserir_relacionamento(rel);
 }
 
-/* -------------------------------------------------------
  * Ponto de entrada público
- * ------------------------------------------------------- */
 void carregar_dados_iniciais(void) {
     /* Garante que proximo_id_global está sincronizado com disco */
     sincronizar_id_global();

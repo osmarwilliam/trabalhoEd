@@ -4,7 +4,7 @@
 #define NOME_MAX 100
 #define MAX_ALTURA 64  /* log_t(N) nunca passa disso na prática */
 
-/* ================= ENTIDADES ================= */
+// ENTIDADES
 typedef struct {
     int  id_pessoa;
     char nome[NOME_MAX];
@@ -36,13 +36,12 @@ typedef struct {
     } dados;
 } Registro;
 
-/* ================= NÓS DA ÁRVORE B+ ================= */
-/*
- * grau mínimo t (escolhido pelo usuário):
- *   - nó interno: t-1  ≤ num_chaves ≤ 2t-1  (raiz: 1 ≤ num_chaves ≤ 2t-1)
- *   - folha     : t-1  ≤ num_registros ≤ 2t-1
- * Arrays alocados dinamicamente; serializados em disco com tamanho fixo por nó.
- */
+//NÓS DA ÁRVORE B+
+// grau mínimo t (escolhido pelo usuário):
+//nó interno: t-1  ≤ num_chaves ≤ 2t-1  (raiz: 1 ≤ num_chaves ≤ 2t-1)
+// - folha: t-1  ≤ num_registros ≤ 2t-1
+//Arrays alocados dinamicamente; serializados em disco com tamanho fixo por nó.
+
 typedef struct {
     int   num_chaves;
     char **chaves;   /* [2t-1] strings de NOME_MAX chars */
